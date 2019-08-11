@@ -1,6 +1,5 @@
 # Serialization of Kotlin Sealed Case Classes
 
-
 This repository shows how to serialize and deserialize kotlin sealed cases
 classes using Jackson.
 
@@ -50,16 +49,17 @@ define how instances of the above defined marker interface shall be serialized.
 
 # Usage Example
 
-There are only two small things to be added in the normal user code:
-* A marker interface needs to be defined
-* Sealed Case Classes need to implement that marker interface
+The `SealedCaseClassesTest` includes a fully runnable example to demonstrate the solution.
+There are only two things to be added in main code:
+* A marker interface needs to be defined, and
+* Sealed Case Classes need to be marked with that interface
 
-This is almost no boiler-plate as can be seen in the example below:
+This is almost no boiler-plate as can be seen in the following example:
 
 ```kotlin
 interface Tagged  // marker interface, any name would work
 
-sealed class SealedClass : Tagged {
+sealed class SealedClass : Tagged { // mark the class
   data class A(val name: String) : SealedClass()
   data class B(val name: Double, val age: Int) : SealedClass()
   object C : SealedClass()

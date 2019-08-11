@@ -8,7 +8,7 @@ import org.hamcrest.MatcherAssert.assertThat
 import org.junit.Test
 
 class SealedCaseClassesTest {
-    val mapper: ObjectMapper = jacksonObjectMapper()
+    private val mapper: ObjectMapper = jacksonObjectMapper()
         .configure(SerializationFeature.INDENT_OUTPUT, false)
         // handling of type ids in sealed case classes
         .registerModule(SimpleModule().apply {
