@@ -1,16 +1,24 @@
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
+import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import org.hamcrest.CoreMatchers.equalTo
 import org.hamcrest.MatcherAssert.assertThat
 import org.junit.Test
 
+val sealedModule = SimpleModule().apply {
+    this.setMixInAnnotation(TestSealedClasses.Tagged::class.java, TaggedMix::class.java)
+}
+
 class TestSealedClasses {
     val mapper: ObjectMapper = jacksonObjectMapper()
         .configure(SerializationFeature.INDENT_OUTPUT, false)
+        .registerModule(sealedModule)
 
-    sealed class SealedClass {
+    interface Tagged
+
+    sealed class SealedClass : Tagged {
         data class A(val name: String) : SealedClass()
         data class B(val name: Double, val age: Int) : SealedClass()
         object C : SealedClass()
