@@ -20,13 +20,13 @@ import java.lang.reflect.Type
 @JsonTypeIdResolver(value = SealedCaseClassesSimpleNameIdResolver::class)
 interface SealedCaseClassesSimpleNameIdMixin
 
-object SealedCaseClassesSimpleNameIdResolver
-    : SealedCaseClassesTypeIdResolver({ it.simpleName })
+object SealedCaseClassesSimpleNameIdResolver : SealedCaseClassesTypeIdResolver() {
+    override fun namingStrategy(clazz: Class<*>): String = clazz.simpleName
+}
 
 /** Resolves sealedSubclasses based on given 'namingStrategy' */
-open class SealedCaseClassesTypeIdResolver(
-    private val namingStrategy: (Class<*>) -> String
-) : TypeIdResolverBase() {
+abstract class SealedCaseClassesTypeIdResolver : TypeIdResolverBase() {
+    abstract fun namingStrategy(clazz: Class<*>): String
     private var idResolution: Map<String, Type> = mapOf()
 
     override fun init(base: JavaType) {
