@@ -1,26 +1,28 @@
 import com.fasterxml.jackson.annotation.JsonTypeInfo
-import com.fasterxml.jackson.databind.*
+import com.fasterxml.jackson.databind.DatabindContext
+import com.fasterxml.jackson.databind.JavaType
 import com.fasterxml.jackson.databind.annotation.JsonTypeIdResolver
 import com.fasterxml.jackson.databind.jsontype.impl.TypeIdResolverBase
-import com.fasterxml.jackson.databind.module.SimpleModule
 import java.lang.reflect.Type
 
-
 @JsonTypeInfo(use = JsonTypeInfo.Id.CUSTOM, property = "tag")
-@JsonTypeIdResolver(value = SealedClassesTypeIdResolver::class)
-interface TaggedMix
+@JsonTypeIdResolver(value = SealedCaseClassesSimpleNameIdResolver::class)
+interface SealedCaseClassesSimpleNameIdMixin
+
+object SealedCaseClassesSimpleNameIdResolver
+    : SealedCaseClassesTypeIdResolver({ it.simpleName })
 
 /** resolve type names to nice names */
-private open class SealedClassesTypeIdResolver(
-        private val namingStrategy: (Class<*>) -> String = { it.simpleName }
+open class SealedCaseClassesTypeIdResolver(
+    private val namingStrategy: (Class<*>) -> String
 ) : TypeIdResolverBase() {
     private var idResolution: Map<String, Type> = mapOf()
 
     override fun init(base: JavaType) {
         val classes = if (base.isAbstract) {
             base.rawClass.kotlin
-                    .sealedSubclasses
-                    .map { it.java }
+                .sealedSubclasses
+                .map { it.java }
         } else {
             listOf(base.rawClass)
         }
@@ -28,7 +30,7 @@ private open class SealedClassesTypeIdResolver(
     }
 
     override fun typeFromId(context: DatabindContext, id: String): JavaType =
-            context.constructType(idResolution[id])
+        context.constructType(idResolution[id])
 
     override fun idFromValue(value: Any): String = namingStrategy(value.javaClass)
 

@@ -7,8 +7,10 @@ import org.hamcrest.CoreMatchers.equalTo
 import org.hamcrest.MatcherAssert.assertThat
 import org.junit.Test
 
-val sealedModule = SimpleModule().apply {
-    this.setMixInAnnotation(TestSealedClasses.Tagged::class.java, TaggedMix::class.java)
+private val sealedModule = SimpleModule().apply {
+    this.setMixInAnnotation(
+        SealedCaseClassesTest.Tagged::class.java,
+        SealedCaseClassesSimpleNameIdMixin::class.java)
     this.setDeserializerModifier(object : BeanDeserializerModifier() {
         override fun modifyDeserializer(
             config: DeserializationConfig,
@@ -19,7 +21,7 @@ val sealedModule = SimpleModule().apply {
     })
 }
 
-class TestSealedClasses {
+class SealedCaseClassesTest {
     val mapper: ObjectMapper = jacksonObjectMapper()
         .configure(SerializationFeature.INDENT_OUTPUT, false)
         .registerModule(sealedModule)
