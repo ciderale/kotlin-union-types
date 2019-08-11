@@ -7,27 +7,28 @@ import org.hamcrest.CoreMatchers.equalTo
 import org.hamcrest.MatcherAssert.assertThat
 import org.junit.Test
 
-class SealedCaseClassesTest {
-    private val mapper: ObjectMapper = jacksonObjectMapper()
-        .configure(SerializationFeature.INDENT_OUTPUT, false)
-        // handling of type ids in sealed case classes
-        .registerModule(SimpleModule().apply {
-            setMixInAnnotation(
-                SealedCaseClassesTest.Tagged::class.java,
-                SealedCaseClassesSimpleNameIdMixin::class.java)
+val mapper: ObjectMapper = jacksonObjectMapper()
+    .configure(SerializationFeature.INDENT_OUTPUT, false)
+    // handling of type ids in sealed case classes
+    .registerModule(SimpleModule().apply {
+        setMixInAnnotation(
+            SealedCaseClassesTest.Tagged::class.java,
+            SealedCaseClassesSimpleNameIdMixin::class.java)
+    })
+    // ensure the kotlin objects are treated as singletons
+    .registerModule(SimpleModule().apply {
+        setDeserializerModifier(object : BeanDeserializerModifier() {
+            override fun modifyDeserializer(
+                config: DeserializationConfig,
+                beanDesc: BeanDescription,
+                deserializer: JsonDeserializer<*>
+            ) = super.modifyDeserializer(config, beanDesc, deserializer)
+                .maybeSingleton(beanDesc.beanClass)
         })
-        // ensure the kotlin objects are treated as singletons
-        .registerModule(SimpleModule().apply {
-            setDeserializerModifier(object : BeanDeserializerModifier() {
-                override fun modifyDeserializer(
-                    config: DeserializationConfig,
-                    beanDesc: BeanDescription,
-                    deserializer: JsonDeserializer<*>
-                ) = super.modifyDeserializer(config, beanDesc, deserializer)
-                    .maybeSingleton(beanDesc.beanClass)
-            })
-        })
+    })
 
+
+class SealedCaseClassesTest {
     interface Tagged
 
     sealed class SealedClass : Tagged {
