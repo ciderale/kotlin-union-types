@@ -99,3 +99,35 @@ Note that this code only depends on the marker interface `Tagged` and _not_ on
 the various business objects.  Hence, adding a new business object will not
 cause a change in this module.  In other words, the maker interface fully
 decouples the domain objects from the serialization logic.
+
+## Example output
+
+Using the above domain classes, the following json is generated
+
+```
+   [ {
+     "tag" : "A",      // <- the generated type information
+     "name" : "Class A"
+   }, {
+     "tag" : "B",      // <- the generated type information
+     "name" : 3.14,
+     "age" : 23
+   }, {
+     "tag" : "C"       // <- the generated type information
+   } ]
+```
+
+when executing the following code fragment:
+
+```kotlin
+ val all:List<SealedClass> = listOf(
+            SealedClass.A("Class A"),
+            SealedClass.B(3.14, 23),
+            SealedClass.C)
+
+ // unfortunately, serializing top-level lists does not work
+ // without explicit type information, but that is another issue
+ val json = mapper.writerFor(jacksonTypeRef<List<SealedClass>>())
+                  .withDefaultPrettyPrinter()
+                  .writeValueAsString(all)
+```
