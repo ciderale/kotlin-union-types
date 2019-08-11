@@ -7,24 +7,26 @@ import org.hamcrest.CoreMatchers.equalTo
 import org.hamcrest.MatcherAssert.assertThat
 import org.junit.Test
 
-private val sealedModule = SimpleModule().apply {
-    this.setMixInAnnotation(
-        SealedCaseClassesTest.Tagged::class.java,
-        SealedCaseClassesSimpleNameIdMixin::class.java)
-    this.setDeserializerModifier(object : BeanDeserializerModifier() {
-        override fun modifyDeserializer(
-            config: DeserializationConfig,
-            beanDesc: BeanDescription,
-            deserializer: JsonDeserializer<*>
-        ) = super.modifyDeserializer(config, beanDesc, deserializer)
-            .maybeSingleton(beanDesc.beanClass)
-    })
-}
-
 class SealedCaseClassesTest {
     val mapper: ObjectMapper = jacksonObjectMapper()
         .configure(SerializationFeature.INDENT_OUTPUT, false)
-        .registerModule(sealedModule)
+        // handling of type ids in sealed case classes
+        .registerModule(SimpleModule().apply {
+            setMixInAnnotation(
+                SealedCaseClassesTest.Tagged::class.java,
+                SealedCaseClassesSimpleNameIdMixin::class.java)
+        })
+        // ensure the kotlin objects are treated as singletons
+        .registerModule(SimpleModule().apply {
+            setDeserializerModifier(object : BeanDeserializerModifier() {
+                override fun modifyDeserializer(
+                    config: DeserializationConfig,
+                    beanDesc: BeanDescription,
+                    deserializer: JsonDeserializer<*>
+                ) = super.modifyDeserializer(config, beanDesc, deserializer)
+                    .maybeSingleton(beanDesc.beanClass)
+            })
+        })
 
     interface Tagged
 
@@ -52,12 +54,12 @@ class SealedCaseClassesTest {
         testRoundTripProperty(c, """{"tag":"C"}""")
     }
 
-    inline fun <reified T : SealedClass> testRoundTripProperty(value: T, json: String) {
+    private inline fun <reified T : SealedClass> testRoundTripProperty(value: T, json: String) {
         assertRoundTrip(value, json)
         assertRoundTrip<SealedClass>(value, json)
     }
 
-    inline fun <reified T> assertRoundTrip(a: T, json: String) {
+    private inline fun <reified T> assertRoundTrip(a: T, json: String) {
         val ja = mapper.writeValueAsString(a)
         assertThat(ja, equalTo(json))
         val oa = mapper.readValue<T>(ja)

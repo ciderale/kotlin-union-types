@@ -16,14 +16,14 @@ private fun objectSingletonInstance(beanClass: Class<*>): Any? = beanClass.kotli
 private fun JsonDeserializer<*>.withSingleton(singleton: Any) =
     KotlinObjectSingletonDeserializer(singleton, this)
 
-/*
- * deserialize as normal, but return the canonical singleton instance
- */
+/** deserialize as normal, but return the canonical singleton instance. */
 private class KotlinObjectSingletonDeserializer(
     private val singletonInstance: Any,
     private val defaultDeserializer: JsonDeserializer<*>
 ) : JsonDeserializer<Any>(),
-    // BeanSerializer implements the following interfaces and need to be forwarded
+    // Additional interfaces of a specific 'JsonDeserializer' must be supported
+    // Kotlin objectInstances are currently handled by a BeanSerializer which
+    // implements 'ContextualDeserializer' and 'ResolvableDeserializer'.
     ContextualDeserializer,
     ResolvableDeserializer {
 
