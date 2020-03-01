@@ -65,6 +65,8 @@ class SealedCaseClassesTest {
 
         // unfortunately, serializing top-level lists does not work
         // without explicit type information, but that is another issue
+        // assertRoundTrip(all, json)
+
         val json = mapper.writerFor(jacksonTypeRef<List<SealedClass>>())
             .withDefaultPrettyPrinter()
             .writeValueAsString(all)
@@ -81,6 +83,7 @@ class SealedCaseClassesTest {
              "tag" : "C"
            } ]
         """.trimIndent()))
+        assertThat(mapper.readValue(json), equalTo(all))
     }
 
 
