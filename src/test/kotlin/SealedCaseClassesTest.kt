@@ -1,36 +1,12 @@
-import com.fasterxml.jackson.databind.*
-import com.fasterxml.jackson.databind.deser.BeanDeserializerModifier
-import com.fasterxml.jackson.databind.module.SimpleModule
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.fasterxml.jackson.module.kotlin.jacksonTypeRef
-import com.fasterxml.jackson.module.kotlin.readValue
-import org.hamcrest.CoreMatchers.equalTo
-import org.hamcrest.MatcherAssert.assertThat
 import org.junit.Test
 
-val mapper: ObjectMapper = jacksonObjectMapper()
-    .configure(SerializationFeature.INDENT_OUTPUT, false)
-    // handling of type ids in sealed case classes
-    .registerModule(SimpleModule().apply {
-        setMixInAnnotation(
-            SealedCaseClassesTest.Tagged::class.java,
-            SealedCaseClassesSimpleNameIdMixin::class.java)
-    })
-    // ensure the kotlin objects are treated as singletons
-    .registerModule(SimpleModule().apply {
-        setDeserializerModifier(object : BeanDeserializerModifier() {
-            override fun modifyDeserializer(
-                config: DeserializationConfig,
-                beanDesc: BeanDescription,
-                deserializer: JsonDeserializer<*>
-            ) = super.modifyDeserializer(config, beanDesc, deserializer)
-                .maybeSingleton(beanDesc.beanClass)
-        })
-    })
-
-
 class SealedCaseClassesTest {
-    interface Tagged
+    // define one such interface in your domain module (and thus avoid dependency on jackson)
+    interface Tagged {
+        // this default property must be in-sync with the registered type naming strategy
+        // in this concrete case, with 'SealedCaseClassesSimpleNameIdResolver'
+        val tag: String get() = this.javaClass.simpleName
+    }
 
     sealed class SealedClass : Tagged {
         data class A(val name: String) : SealedClass()
@@ -41,13 +17,13 @@ class SealedCaseClassesTest {
     @Test
     fun testRoundTripPropertyForA() {
         val a = SealedClass.A("Class A")
-        testRoundTripProperty(a, """{"tag":"A","name":"Class A"}""")
+        testRoundTripProperty(a, """{"name":"Class A","tag":"A"}""")
     }
 
     @Test
     fun testRoundTripPropertyForB() {
         val b = SealedClass.B(3.14, 23)
-        testRoundTripProperty(b, """{"tag":"B","name":3.14,"age":23}""")
+        testRoundTripProperty(b, """{"name":3.14,"age":23,"tag":"B"}""")
     }
 
     @Test
@@ -62,40 +38,11 @@ class SealedCaseClassesTest {
             SealedClass.A("Class A"),
             SealedClass.B(3.14, 23),
             SealedClass.C)
-
-        // unfortunately, serializing top-level lists does not work
-        // without explicit type information, but that is another issue
-        // assertRoundTrip(all, json)
-
-        val json = mapper.writerFor(jacksonTypeRef<List<SealedClass>>())
-            .withDefaultPrettyPrinter()
-            .writeValueAsString(all)
-
-        assertThat(json, equalTo("""
-           [ {
-             "tag" : "A",
-             "name" : "Class A"
-           }, {
-             "tag" : "B",
-             "name" : 3.14,
-             "age" : 23
-           }, {
-             "tag" : "C"
-           } ]
-        """.trimIndent()))
-        assertThat(mapper.readValue(json), equalTo(all))
+        assertRoundTrip(all, """[{"name":"Class A","tag":"A"},{"name":3.14,"age":23,"tag":"B"},{"tag":"C"}]""")
     }
-
 
     private inline fun <reified T : SealedClass> testRoundTripProperty(value: T, json: String) {
-        assertRoundTrip(value, json)
-        assertRoundTrip<SealedClass>(value, json)
-    }
-
-    private inline fun <reified T> assertRoundTrip(a: T, json: String) {
-        val ja = mapper.writeValueAsString(a)
-        assertThat(ja, equalTo(json))
-        val oa = mapper.readValue<T>(ja)
-        assertThat(oa, equalTo<T>(a))
+        assertRoundTrip(value, json) // uses the specific type
+        assertRoundTrip<SealedClass>(value, json) // uses the base type (ie. not A,B,C)
     }
 }

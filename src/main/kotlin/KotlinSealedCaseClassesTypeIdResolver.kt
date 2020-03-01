@@ -1,28 +1,8 @@
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.databind.DatabindContext
 import com.fasterxml.jackson.databind.JavaType
-import com.fasterxml.jackson.databind.annotation.JsonTypeIdResolver
 import com.fasterxml.jackson.databind.jsontype.impl.TypeIdResolverBase
 import java.lang.reflect.Type
-
-/** use the simple name as TypeId information in jackson serialization.
- *
- * usage:
- * - define an 'interface Tagged' to tag selected types
- * - register a mixin for that marker interface in jackson:
- * jacksonObjectMapper().registerModule(SimpleModule().apply {
- *   setMixInAnnotation(
- *     Tagged::class.java,
- *     SealedCaseClassesSimpleNameIdMixin::class.java)
- * })
- */
-@JsonTypeInfo(use = JsonTypeInfo.Id.CUSTOM, property = "tag")
-@JsonTypeIdResolver(value = SealedCaseClassesSimpleNameIdResolver::class)
-interface SealedCaseClassesSimpleNameIdMixin
-
-object SealedCaseClassesSimpleNameIdResolver : SealedCaseClassesTypeIdResolver() {
-    override fun namingStrategy(clazz: Class<*>): String = clazz.simpleName
-}
 
 /** Resolves sealedSubclasses based on given 'namingStrategy' */
 abstract class SealedCaseClassesTypeIdResolver : TypeIdResolverBase() {
@@ -49,4 +29,3 @@ abstract class SealedCaseClassesTypeIdResolver : TypeIdResolverBase() {
 
     override fun getMechanism(): JsonTypeInfo.Id = JsonTypeInfo.Id.CUSTOM
 }
-
