@@ -41,7 +41,6 @@ class SealedCaseClassesAlmostTest {
         // unfortunately, serializing top-level lists does not work
         // problem: the list element type is erased and so the "TaggedAlmost" is lost
         // hence, the type information "C" is not in the serialized json string
-        assertThat(mapper.writeValueAsString(all), not(containsString("\"C\"")))
         assertThat(mapper.writeValueAsString(all), equalTo("""
            [{"name":"Class A"},{"name":3.14,"age":23},{}]
         """.trimIndent()))

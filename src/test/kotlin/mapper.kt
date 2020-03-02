@@ -17,7 +17,7 @@ val mapper: ObjectMapper = jacksonObjectMapper()
             SealedCaseClassesAlmostTest.TaggedAlmost::class.java,
             SealedCaseClassesAlmostSimpleNameIdMixin::class.java)
     })
-    // ensure the kotlin objects are treated as singletons
+    // ensure that kotlin objects are treated as singletons
     .registerModule(SimpleModule().apply {
         setDeserializerModifier(object : BeanDeserializerModifier() {
             override fun modifyDeserializer(
@@ -30,9 +30,9 @@ val mapper: ObjectMapper = jacksonObjectMapper()
     })
 
 
-inline fun <reified T> assertRoundTrip(a: T, json: String) {
-    val ja = mapper.writeValueAsString(a)
-    MatcherAssert.assertThat(ja, CoreMatchers.equalTo(json))
-    val oa = mapper.readValue<T>(ja)
-    MatcherAssert.assertThat(oa, CoreMatchers.equalTo<T>(a))
+inline fun <reified T> assertRoundTrip(a: T, expectedJson: String) {
+    val json = mapper.writeValueAsString(a)
+    MatcherAssert.assertThat(json, CoreMatchers.equalTo(expectedJson))
+    val deserializedValue = mapper.readValue<T>(json)
+    MatcherAssert.assertThat(deserializedValue, CoreMatchers.equalTo<T>(a))
 }
