@@ -5,7 +5,7 @@ classes using Jackson. 'jackson-module-kotlin' does a good job in general,
 but lacks some functionality for handling sealed case classes. Those issues
 can however be resolved with custom configurations.
 
-The goal is to properly handle sealed case classes like the following:
+The goal is to properly handle _sealed case classes_ like the following:
 ```kotlin
 sealed class SealedClass {
   data class A(val name: String) : SealedClass()
@@ -13,27 +13,28 @@ sealed class SealedClass {
   object C : SealedClass()
 }
 ```
-Some desired requirements are:
-* A value that is seralized and deserialized compares equal to the initial value, i.e.
+Some desirable properties for an object mapper are:
+* (MUST) A value that is serialized and deserialized compares equal to the initial value, i.e.
 `assertThat(deserialize(serialized(value)), equalTo(value))`
-* The amount of boiler plate on such domain classes is kept minimal (ideally none at all)
+* (SHOULD) The amount of boiler plate on such domain classes is kept minimal (ideally none at all)
+* (COULD) The class name ("A", "B", or "C") is used as-is in the json string, without further prefixes.
 
 ## Issues without custom mapper configuration
 
 Without a custom configuration of the object mapper, there are several issues:
 * Deserialization of 'kotlin object' creates new instances, ie. 
-`assertThat(deserialize(serialized(C)), equalTo(C))` will fail.
+`assertThat(deserialize(serialized(C)), equalTo(C))` will fail. That means, the must property is not fulfilled.
 * Deserialization of a value into `SealedClass` fails because the serialized json value does not contain type information (i.e. is it A, B, or C).
 
 These issues might be resolvable by annotations on `SealedClass` and the subtypes `A`, `B`, and `C`.
 However, that would be verbose and clutter an otherwise concise domain representation. 
-Therefore, we seek a solution that generally applies the necessary adjustments.
+Therefore, we aim for a solution that works that configures the object mapper to work without annotations.
 
 # Proposed solution for handling sealed cases classes
 
-We propose a solution based on a single marker interface. Besides the configuration of 
-the object mapper, only a single interface needs to be added to the main code. Sealed
-classes only have to be marked with that interface, thus having minimal boilerplate.
+This repository presents a solution based on a single marker interface that fulfills the three initially
+stated properties. The solution has minimal boilerplate and the class naming strategy can be 
+configured once and for all case classes. Most importantly, it correctly deserializes an previously serialized value.
 
 The following example demonstrates the solution. A fully runnable example is provided
 in `SealedCaseClassesTest`. Implementation details and discussion are provided after
@@ -41,15 +42,16 @@ the example.
 
 ## Example
 
-Define a marker interface once (any name would work).
+Define a single marker interface in your domain module.
 ```kotlin
-interface Tagged  { 
+interface Tagged  { // any name would work
   // with the desired class naming strategy
   val tag: String get() = this.javaClass.simpleName
 }
 ```
+This needs to be done once and can be reused for every sealed case class.
 
-Annotate all your sealed case classes with the marker interface
+Annotate all your sealed case classes with this marker interface
 ```kotlin
 sealed class SealedClass : Tagged { // mark the class
   data class A(val name: String) : SealedClass()
@@ -57,17 +59,20 @@ sealed class SealedClass : Tagged { // mark the class
   object C : SealedClass()
 }
 ```
+Not that this marking is the only thing that needs to be repeated for every case class.
+The marking is however almost invisible and thus not very distracting.
 
-Configure the object mapper: 
+Another one-time setup is the configuration of the object mapper.
+It ensures the correct handling of kotlin's "object" type and provides the necessary
+type information needed for deserialization:
 ```kotlin
 val mapper: ObjectMapper = jacksonObjectMapper()
-        .configure(SerializationFeature.INDENT_OUTPUT, false)
         // handling of type ids in sealed case classes
         .registerModule(SimpleModule().apply {
             setMixInAnnotation(Tagged::class.java,
                 SealedCaseClassesSimpleNameIdMixin::class.java)
         })
-        // ensure the kotlin objects are treated as singletons
+        // ensure that kotlin objects are treated as singletons
         .registerModule(SimpleModule().apply {
             setDeserializerModifier(object : BeanDeserializerModifier() {
                 override fun modifyDeserializer(
@@ -80,15 +85,15 @@ val mapper: ObjectMapper = jacksonObjectMapper()
         })
 ```
 
-Usage:
+Given this configuration, the mapper is ready to be used, like
 ```kotlin
- val someList:List<SealedClass> = listOf(
+  val someList:List<SealedClass> = listOf(
             SealedClass.A("Class A"),
             SealedClass.B(3.14, 23),
             SealedClass.C)
   println(mapper.writeValueAsString(someList))
 ```
-results in
+which results in
 ```json
    [ {
      "tag" : "A",
@@ -104,21 +109,35 @@ results in
 
 ## Discussion
 
+### Pro
 - The solution properly serializes and deserializes sealed cases classes (see Tests).
 - The solution has almost no boilerplate on the domain classes. 
-  Sealed case classes only need to be annotated, no additional configuration needed.
+  Sealed case classes only need to implement the marker interface, no further configuration needed.
 - The one-time setup for this solution is small. It suffices to
   * define the marker interface (with default method), and to
-  * configure the object mapper, both almost copy-paste activities and independent of the actual number of sealed case classes used.
-- Adding new business domain classes does not require additional configuration.
+  * configure the object mapper, both almost copy-paste activities.
+- The configuration effort is independent of the actual number of sealed case classes used.
 The maker interface fully decouples the domain objects from the serialization logic.
-- The naming strategy for the included type information can be defined
+That means, adding a new case class does not require additional configuration, besides implementing
+the marker interface.
+- The naming strategy for the included type information can be defined as needed
 - The domain code does not depend on the jackson library. This is interesting from a dependency 
-inversion point of view -- the core logic is independent of the serialization.
-- There is one minor caveat with this solution. 
-There is some duplication between the marker interface and the typeid annotation.
-Both, the tag name and the naming strategy must be in-sync. This seems to be benign however
-as those two things are usually defined once and unlikely to change. And even changing them would be simple.
+inversion point of view -- the core logic is independent of the serialization. However, the marker
+interface could also be provided by jackson, if the dependency is not an issue.
+
+### Cons
+
+There is one minor caveat with this solution. 
+There is some duplication between the marker interface and the `@JsonTypeInfo` annotation used
+on the `SealedCaseClassesSimpleNameIdMixin`. Both, the tag name and the naming strategy must be in-sync. 
+This seems to be benign though, as those two things are usually defined once and unlikely to change. 
+And even changing them would be simple.
+
+### Other options
+
+Maybe there are other options to achieve the same. If you know a better solution, please let me know.
+
+# Implementation details
 
 ## Handling of 'object' Singleton Type
 
@@ -129,35 +148,30 @@ This can cause subtle problem when values are not compared with the 'is' operato
 This repository provides a BeanDeserializerModifier that ensures that no "new
 singletons" are exposed. The `KotlinObjectSingletonDeserializer` uses the
 normal deserializer, but always returns the "canonical" singleton object (that
-kotlin exposes).
+kotlin defines).
 
-This ensures that there is just one singleton object accessible and yet
-deserializes the 'object' internals (in case of mutable state) as without using
-`KotlinObjectSingletonDeserializer`. 
+This ensures that there is just one singleton object accessible and hence
+comparison (using `==`) work as expected.
 
-One can argue that object singletons with mutable state
-should not be serialized directly. 
-Then deserialisation could ignore any content but the type information.
-This discussion is however out of scope.
+By wrapping the standard deserializer, the 'object' internals (in case of mutable state) 
+are deserialized as without using `KotlinObjectSingletonDeserializer`. One can argue that 
+object singletons with mutable state should not be serialized directly, but that
+discussion is not the scope of this expose. In fact, typical `object` in case classes
+are more like an enum constant without mutable member. In that case, deserialization could 
+also skip any json content, but the type information.
 
-## @JsonTypeInfo annotation
+## @JsonTypeInfo to include type information
 
 This annotation allows to include type information into the serialized value.
-There are 3 builtin options for the generated type information, all having some
-downsides:
-* CLASS: Fully qualified class names: 
-  - The package name might be unnecessary detail
-* MINIMAL_CLASS: 
-  - includes a leading '.' which seems like an implementation detail for external clients (like js frontent)
-  - documentation warns that it may not always work
-* NAME:
-  - TODO
-  
-In the concrete case of sealed case classes, we have some additional information to exploit.
-The base class knows all potential subclasses due to the "sealed" property. This additional
-information can be exploited with a custom naming strategy.
+This is crucial to deserialize a json object into the appropriate case class.
+However, there are two issues that will be addressed in the next two subsections.
 
-## Type information despite type erasure for List<T>
+First, the type information is not included when type information is lost due to type erasure. 
+Second, there are only three built-in naming strategies and none of which uses the inner most class name alone. 
+All three naming strategies seem to include to include at least the name of the outer classes 
+separated by `$` (e.g. `SealedClass$B`) which is a java specific implementation detail.
+
+### Type information despite type erasure for List<T>
 
 Due to type erasure, serialization of (top-level) `List<T>` and similar constructs 
 requires additional tricks. The problem is that the concrete type `T` will be erased. 
@@ -177,23 +191,16 @@ That solution has a true marker interface (without default method)
 but fails at serialization of top-level lists without explicitly 
 providing type information to the object mapper.
 
-##  TypeId Naming Strategy
+### @JsonTypeIdResolver for custom naming strategy
 
-TODO - outdated
-Secondly, the deserialization must include a type id in order to allow for a
-correct deserialization.
+The benefit of sealed case classes is that the possible sub-types are statically known.
 
-This is possible with the `@JsonTypeInfo` annotation, but can be a bit verbose,
-especially when a custom type naming strategy shall be used. This repository
-demonstrates how to use a 'marker interface' to choose an appropriate naming
-strategy with minimal boiler-plate.
+This can be leveraged to define almost arbitrary naming strategies. Since all sub types
+can be enumerated from the base class (e.g. `SealedClass`), the naming strategy must only
+guarantee to differentiate between the possible sub types. That is, it does not have to 
+be unique across the entire code base. Hence, neither outer class or package information 
+needs to be included.
 
-The key idea is that "domain classes" implement a marker interface.  This
-defines which classes shall be serialized with type information, without
-actually defining the naming strategy. This is very convenient as it is less
-verbose than the `@JsonTypInfo` annotation and does not incur a dependency on
-the jackson module.
-
-The actual choice of the naming strategy is defined when constructing the
-jackson object mapper. Specifically, jacksons 'mixin' functionality is used to
-define how instances of the above defined marker interface shall be serialized.
+Hence, it is possible to use just the name of the inner most classes. 
+This works as long as all cases of the sealed case class have unique names.
+But of course, more elaborated nameing schemes can be deployed as needed.
